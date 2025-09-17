@@ -441,6 +441,21 @@ private:
 		wil::unique_hkey registryHandle;
 		LSTATUS createResult = RegCreateKeyExW(HKEY_LOCAL_MACHINE, L"SOFTWARE\\Microsoft\\PowerShell\\1", 0, nullptr, REG_OPTION_NON_VOLATILE, KEY_READ, nullptr, &registryHandle, nullptr);
 
+		// If key 1 exists, check if Install value exists - if not, treat it as if key doesn't exist
+		if (createResult == ERROR_SUCCESS)
+		{
+			DWORD valueFromRegistry = 0;
+			DWORD bufferSize = sizeof(DWORD);
+			DWORD type = REG_DWORD;
+			LSTATUS queryResult = RegQueryValueExW(registryHandle.get(), L"Install", nullptr, &type, reinterpret_cast<BYTE*>(&valueFromRegistry), &bufferSize);
+			if (queryResult == ERROR_FILE_NOT_FOUND)
+			{
+				// Install value missing, set an error to trigger fallback to key 3
+				createResult = ERROR_PATH_NOT_FOUND;
+				registryHandle.reset();
+			}
+		}
+
 		if (createResult == ERROR_FILE_NOT_FOUND)
 		{
 			// If the key cannot be found, powershell is not installed
